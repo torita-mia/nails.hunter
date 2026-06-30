@@ -177,12 +177,64 @@ function BackBtn({ onClick }) {
 
 function StepWrap({ title, subtitle, children }) {
   return (
-    <div style={{ padding: "24px 18px 20px", display: "flex", flexDirection: "column", gap: 18, minHeight: 380 }}>
-      <div>
+    <div style={{ padding: "22px 18px calc(18px + env(safe-area-inset-bottom))", display: "flex", flexDirection: "column", gap: 16, flex: 1, minHeight: 0 }}>
+      <div style={{ flexShrink: 0 }}>
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: C.negro, letterSpacing: "-0.02em", lineHeight: 1.2 }}>{title}</h2>
         {subtitle && <p style={{ margin: "5px 0 0", fontSize: 13, color: C.gris, lineHeight: 1.5 }}>{subtitle}</p>}
       </div>
       {children}
+    </div>
+  );
+}
+
+// ─── UPLOAD DE FOTO REAL ──────────────────────────────────────────────────────
+function PhotoUpload({ value, onChange, labelEmpty, labelFull, accept = "image/*" }) {
+  const inputRef = useRef(null);
+
+  const handleFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => onChange({ name: file.name, dataUrl: reader.result });
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        capture={undefined}
+        onChange={handleFile}
+        style={{ display: "none" }}
+      />
+      <div
+        onClick={() => inputRef.current?.click()}
+        style={{
+          padding: value ? "12px" : "18px",
+          borderRadius: 12,
+          border: `1.5px ${value ? "solid" : "dashed"} ${value ? C.verde : C.borde}`,
+          background: value ? C.verdeLight : C.blanco,
+          cursor: "pointer", textAlign: "center", transition: "all 0.15s",
+        }}
+      >
+        {value?.dataUrl ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <img src={value.dataUrl} alt="preview" style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover", flexShrink: 0, border: `1px solid ${C.borde}` }} />
+            <div style={{ textAlign: "left", flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.verde }}>{labelFull}</div>
+              <div style={{ fontSize: 11, color: C.gris, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value.name} · tocá para cambiar</div>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 22, marginBottom: 5 }}>📎</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.negro }}>{labelEmpty}</div>
+            <div style={{ fontSize: 11, color: C.gris, marginTop: 2 }}>JPG o PNG</div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -307,14 +359,12 @@ function Step1({ serviceData, onServiceChange, onNext }) {
 
           {/* Upload foto si eligió deco que la requiere */}
           {deco?.needsPhoto && (
-            <div style={{ padding: "14px", borderRadius: 12, border: `1.5px dashed ${decoPhoto ? C.verde : C.borde}`, background: decoPhoto ? C.verdeLight : C.blanco, cursor: "pointer", textAlign: "center" }}
-              onClick={() => onServiceChange({ ...serviceData, decoPhoto: decoPhoto ? null : "foto_referencia.jpg" })}>
-              <div style={{ fontSize: 18, marginBottom: 4 }}>{decoPhoto ? "✅" : "🖼️"}</div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: decoPhoto ? C.verde : C.negro }}>
-                {decoPhoto ? "Foto adjuntada" : "Adjuntá foto de referencia del diseño"}
-              </div>
-              <div style={{ fontSize: 11, color: C.gris, marginTop: 2 }}>JPG o PNG</div>
-            </div>
+            <PhotoUpload
+              value={decoPhoto}
+              onChange={(photo) => onServiceChange({ ...serviceData, decoPhoto: photo })}
+              labelEmpty="Adjuntá foto de referencia del diseño"
+              labelFull="Foto de referencia adjuntada"
+            />
           )}
 
           {deco?.consultar && (
@@ -485,29 +535,50 @@ function Step2({ selected, onSelect, onNext, onBack }) {
 
 // ─── PASO 3 ───────────────────────────────────────────────────────────────────
 function Step3({ date, selected, onSelect, onNext, onBack }) {
-  const slots = SLOTS[date] || [];
+  const allSlots = SLOTS[date] || [];
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+  const isToday = date === todayStr;
+
+  // Si es hoy, filtrar horarios que ya pasaron (con 1h de margen mínimo)
+  const slots = allSlots.filter(slot => {
+    if (!isToday) return true;
+    const [h, m] = slot.split(":").map(Number);
+    const slotMinutes = h * 60 + m;
+    const nowMinutes = now.getHours() * 60 + now.getMinutes() + 60; // +60 min de margen
+    return slotMinutes > nowMinutes;
+  });
+
   const d = new Date(date + "T12:00:00");
   const label = d.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" });
+
   return (
     <StepWrap title="¿A qué hora?" subtitle={`Horarios disponibles para el ${label}.`}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-        {slots.map(slot => {
-          const sel = selected === slot;
-          return (
-            <div key={slot} onClick={() => onSelect(slot)} style={{
-              padding: "10px 8px", borderRadius: 12,
-              border: `2px solid ${sel ? C.fucsia : C.borde}`,
-              background: sel ? C.fucsiaLight : C.blanco,
-              cursor: "pointer", textAlign: "center",
-              fontSize: 15, fontWeight: 800,
-              color: sel ? C.fucsia : C.negro,
-              transition: "all 0.15s",
-            }}>
-              {slot}
-            </div>
-          );
-        })}
-      </div>
+      {slots.length > 0 ? (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+          {slots.map(slot => {
+            const sel = selected === slot;
+            return (
+              <div key={slot} onClick={() => onSelect(slot)} style={{
+                padding: "10px 8px", borderRadius: 12,
+                border: `2px solid ${sel ? C.fucsia : C.borde}`,
+                background: sel ? C.fucsiaLight : C.blanco,
+                cursor: "pointer", textAlign: "center",
+                fontSize: 15, fontWeight: 800,
+                color: sel ? C.fucsia : C.negro,
+                transition: "all 0.15s",
+              }}>
+                {slot}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={{ padding: "24px 16px", textAlign: "center", background: C.grisClarito, borderRadius: 12, color: C.gris, fontSize: 13, lineHeight: 1.5 }}>
+          No quedan horarios disponibles para este día. Elegí otra fecha. 📅
+        </div>
+      )}
+      <div style={{ flex: 1 }} />
       <Btn onClick={onNext} disabled={!selected}>Continuar</Btn>
       <BackBtn onClick={onBack} />
     </StepWrap>
@@ -521,26 +592,43 @@ function Step4({ data, onChange, onNext, onBack }) {
   const emailValid = data.mail ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.mail) : false;
   const telValid = data.celular ? data.celular.replace(/\D/g, "").length >= 8 : false;
   const nombreValid = data.nombre ? data.nombre.trim().length >= 3 : false;
-  const igValid = !!data.instagram;
-  const nacValid = !!data.nacimiento;
 
-  const valid = nombreValid && emailValid && telValid && igValid && nacValid;
+  // Validar mayoría de edad (18+)
+  let edadValida = false;
+  let edadError = "Elegí tu fecha de nacimiento";
+  if (data.nacimiento) {
+    const nac = new Date(data.nacimiento + "T12:00:00");
+    const hoy = new Date();
+    let edad = hoy.getFullYear() - nac.getFullYear();
+    const m = hoy.getMonth() - nac.getMonth();
+    if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) edad--;
+    if (nac > hoy) { edadValida = false; edadError = "La fecha no puede ser futura"; }
+    else if (edad < 18) { edadValida = false; edadError = "Tenés que ser mayor de 18 años"; }
+    else if (edad > 100) { edadValida = false; edadError = "Revisá la fecha ingresada"; }
+    else edadValida = true;
+  }
+
+  const valid = nombreValid && emailValid && telValid && edadValida; // Instagram ya no es obligatorio
+
+  // Fecha máxima = hace 18 años desde hoy
+  const hoy = new Date();
+  const maxDate = new Date(hoy.getFullYear() - 18, hoy.getMonth(), hoy.getDate()).toISOString().split("T")[0];
 
   const fields = [
-    { label: "Nombre completo", name: "nombre", type: "text", placeholder: "Ana García", valid: nombreValid, error: "Ingresá tu nombre completo" },
-    { label: "Mail", name: "mail", type: "email", placeholder: "ana@mail.com", valid: emailValid, error: "Ingresá un mail válido (ej: ana@mail.com)", inputMode: "email" },
-    { label: "Celular", name: "celular", type: "tel", placeholder: "11 1234-5678", valid: telValid, error: "Ingresá un celular válido", inputMode: "tel" },
-    { label: "Instagram", name: "instagram", type: "text", placeholder: "@ana.garcia", valid: igValid, error: "Ingresá tu usuario de Instagram" },
-    { label: "Fecha de nacimiento", name: "nacimiento", type: "date", valid: nacValid, error: "Elegí tu fecha de nacimiento" },
+    { label: "Nombre completo", name: "nombre", type: "text", placeholder: "Ana García", valid: nombreValid, error: "Ingresá tu nombre completo", required: true },
+    { label: "Mail", name: "mail", type: "email", placeholder: "ana@mail.com", valid: emailValid, error: "Ingresá un mail válido (ej: ana@mail.com)", inputMode: "email", required: true },
+    { label: "Celular", name: "celular", type: "tel", placeholder: "11 1234-5678", valid: telValid, error: "Ingresá un celular válido", inputMode: "tel", required: true },
+    { label: "Instagram (opcional)", name: "instagram", type: "text", placeholder: "@ana.garcia", valid: true, error: "", required: false },
+    { label: "Fecha de nacimiento", name: "nacimiento", type: "date", valid: edadValida, error: edadError, required: true, max: maxDate },
   ];
 
   const markTouched = (name) => setTouched(t => ({ ...t, [name]: true }));
 
   return (
     <StepWrap title="Tus datos" subtitle="Los necesitamos para confirmar tu turno.">
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {fields.map(f => {
-          const showError = touched[f.name] && !f.valid && data[f.name];
+          const showError = touched[f.name] && !f.valid && data[f.name] && f.required;
           const isDate = f.type === "date";
           return (
             <div key={f.name}>
@@ -550,7 +638,7 @@ function Step4({ data, onChange, onNext, onBack }) {
                 inputMode={f.inputMode}
                 placeholder={f.placeholder}
                 value={data[f.name] || ""}
-                max={isDate ? new Date().toISOString().split("T")[0] : undefined}
+                max={isDate ? f.max : undefined}
                 onChange={e => onChange(f.name, e.target.value)}
                 onBlur={e => { markTouched(f.name); e.target.style.borderColor = showError ? C.error : C.borde; }}
                 onFocus={e => e.target.style.borderColor = C.fucsia}
@@ -572,6 +660,7 @@ function Step4({ data, onChange, onNext, onBack }) {
           );
         })}
       </div>
+      <div style={{ flex: 1 }} />
       <Btn onClick={onNext} disabled={!valid}>Continuar</Btn>
       <BackBtn onClick={onBack} />
     </StepWrap>
@@ -607,11 +696,13 @@ function Step5({ service, timeLeft, comprobante, onUpload, onNext, onBack }) {
         <div style={{ fontSize: 14, fontWeight: 800, color: C.negro, letterSpacing: "0.03em", wordBreak: "break-all" }}>0000003100012345678901</div>
         <div style={{ fontSize: 11, color: C.gris, marginTop: 4 }}>Titular: Valentina Hunter</div>
       </div>
-      <div onClick={onUpload} style={{ padding: "18px", borderRadius: 12, border: `1.5px ${comprobante ? "solid" : "dashed"} ${comprobante ? C.verde : C.borde}`, background: comprobante ? C.verdeLight : C.blanco, cursor: "pointer", textAlign: "center", transition: "all 0.15s" }}>
-        <div style={{ fontSize: 22, marginBottom: 5 }}>{comprobante ? "✅" : "📎"}</div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: comprobante ? C.verde : C.negro }}>{comprobante ? "Comprobante cargado" : "Subir comprobante de transferencia"}</div>
-        <div style={{ fontSize: 11, color: C.gris, marginTop: 2 }}>{comprobante ? "Tocá para cambiarlo" : "JPG, PNG o PDF"}</div>
-      </div>
+      <PhotoUpload
+        value={comprobante}
+        onChange={onUpload}
+        labelEmpty="Subir comprobante de transferencia"
+        labelFull="Comprobante cargado"
+      />
+      <div style={{ flex: 1 }} />
       <Btn onClick={onNext} disabled={!comprobante}>Enviar reserva</Btn>
       <BackBtn onClick={onBack} />
     </StepWrap>
@@ -657,7 +748,7 @@ export default function App() {
   const [date, setDate] = useState(null);
   const [time, setTime] = useState(null);
   const [form, setForm] = useState({});
-  const [comprobante, setComprobante] = useState(false);
+  const [comprobante, setComprobante] = useState(null);
   const [timeLeft, setTimeLeft] = useState(1800);
   const timerRef = useRef(null);
 
@@ -678,7 +769,7 @@ export default function App() {
             clearInterval(timerRef.current);
             setStep(1);
             setServiceData({ base: null, deco: null, retirado: null, decoPhoto: null, subStep: "base" });
-            setDate(null); setTime(null); setForm({}); setComprobante(false);
+            setDate(null); setTime(null); setForm({}); setComprobante(null);
             setTimeLeft(1800); return 1800;
           }
           return t - 1;
@@ -691,11 +782,11 @@ export default function App() {
   }, [step]);
 
   return (
-    <div style={{ minHeight: "100dvh", background: C.bg, display: "flex", justifyContent: "center", alignItems: "flex-start", padding: "16px 12px calc(24px + env(safe-area-inset-bottom))", fontFamily: "'Inter', system-ui, sans-serif", width: "100%", overflowX: "hidden" }}>
-      <div style={{ width: "100%", maxWidth: 420 }}>
-        <div style={{ background: C.blanco, borderRadius: 20, border: `1.5px solid ${C.borde}`, overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.07)" }}>
+    <div style={{ minHeight: "100dvh", background: C.bg, display: "flex", justifyContent: "center", alignItems: "stretch", padding: "12px 12px calc(16px + env(safe-area-inset-bottom))", fontFamily: "'Inter', system-ui, sans-serif", width: "100%", overflowX: "hidden" }}>
+      <div style={{ width: "100%", maxWidth: 420, display: "flex" }}>
+        <div style={{ background: C.blanco, borderRadius: 20, border: `1.5px solid ${C.borde}`, overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.07)", display: "flex", flexDirection: "column", width: "100%" }}>
           <Header />
-          {step < 6 && <div style={{ borderBottom: `1px solid ${C.borde}` }}><Stepper current={step} /></div>}
+          {step < 6 && <div style={{ borderBottom: `1px solid ${C.borde}`, flexShrink: 0 }}><Stepper current={step} /></div>}
           {step === 1 && (
             <Step1
               serviceData={serviceData}
@@ -706,7 +797,7 @@ export default function App() {
           {step === 2 && <Step2 selected={date} onSelect={d => { setDate(d); setTime(null); }} onNext={() => setStep(3)} onBack={() => setStep(1)} />}
           {step === 3 && <Step3 date={date} selected={time} onSelect={setTime} onNext={() => setStep(4)} onBack={() => setStep(2)} />}
           {step === 4 && <Step4 data={form} onChange={(k, v) => setForm(p => ({ ...p, [k]: v }))} onNext={() => setStep(5)} onBack={() => setStep(3)} />}
-          {step === 5 && <Step5 service={serviceSummary} timeLeft={timeLeft} comprobante={comprobante} onUpload={() => setComprobante(c => !c)} onNext={() => setStep(6)} onBack={() => setStep(4)} />}
+          {step === 5 && <Step5 service={serviceSummary} timeLeft={timeLeft} comprobante={comprobante} onUpload={setComprobante} onNext={() => setStep(6)} onBack={() => setStep(4)} />}
           {step === 6 && <Step6 booking={{ service: serviceSummary, date, time, form }} />}
         </div>
       </div>
