@@ -14,6 +14,7 @@ const C = {
   borde: "#E4DDD7",
   verde: "#2EAF6A",
   verdeLight: "#E6F9EE",
+  error: "#D93838",
 };
 
 const STEPS = [
@@ -515,27 +516,61 @@ function Step3({ date, selected, onSelect, onNext, onBack }) {
 
 // ─── PASO 4 ───────────────────────────────────────────────────────────────────
 function Step4({ data, onChange, onNext, onBack }) {
-  const valid = data.nombre && data.mail && data.celular && data.instagram && data.nacimiento;
+  const [touched, setTouched] = useState({});
+
+  const emailValid = data.mail ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.mail) : false;
+  const telValid = data.celular ? data.celular.replace(/\D/g, "").length >= 8 : false;
+  const nombreValid = data.nombre ? data.nombre.trim().length >= 3 : false;
+  const igValid = !!data.instagram;
+  const nacValid = !!data.nacimiento;
+
+  const valid = nombreValid && emailValid && telValid && igValid && nacValid;
+
   const fields = [
-    { label: "Nombre completo", name: "nombre", type: "text", placeholder: "Ana García" },
-    { label: "Mail", name: "mail", type: "email", placeholder: "ana@mail.com" },
-    { label: "Celular", name: "celular", type: "tel", placeholder: "+54 9 11 1234-5678" },
-    { label: "Instagram", name: "instagram", type: "text", placeholder: "@ana.garcia" },
-    { label: "Fecha de nacimiento", name: "nacimiento", type: "date" },
+    { label: "Nombre completo", name: "nombre", type: "text", placeholder: "Ana García", valid: nombreValid, error: "Ingresá tu nombre completo" },
+    { label: "Mail", name: "mail", type: "email", placeholder: "ana@mail.com", valid: emailValid, error: "Ingresá un mail válido (ej: ana@mail.com)", inputMode: "email" },
+    { label: "Celular", name: "celular", type: "tel", placeholder: "11 1234-5678", valid: telValid, error: "Ingresá un celular válido", inputMode: "tel" },
+    { label: "Instagram", name: "instagram", type: "text", placeholder: "@ana.garcia", valid: igValid, error: "Ingresá tu usuario de Instagram" },
+    { label: "Fecha de nacimiento", name: "nacimiento", type: "date", valid: nacValid, error: "Elegí tu fecha de nacimiento" },
   ];
+
+  const markTouched = (name) => setTouched(t => ({ ...t, [name]: true }));
+
   return (
     <StepWrap title="Tus datos" subtitle="Los necesitamos para confirmar tu turno.">
       <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
-        {fields.map(f => (
-          <div key={f.name}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: C.negro, textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 5 }}>{f.label}</label>
-            <input type={f.type} placeholder={f.placeholder} value={data[f.name] || ""} onChange={e => onChange(f.name, e.target.value)}
-              style={{ width: "100%", padding: "11px 13px", borderRadius: 10, border: `1.5px solid ${C.borde}`, fontSize: 14, color: C.negro, background: C.blanco, outline: "none", fontFamily: "inherit", boxSizing: "border-box", transition: "border 0.15s" }}
-              onFocus={e => e.target.style.borderColor = C.fucsia}
-              onBlur={e => e.target.style.borderColor = C.borde}
-            />
-          </div>
-        ))}
+        {fields.map(f => {
+          const showError = touched[f.name] && !f.valid && data[f.name];
+          const isDate = f.type === "date";
+          return (
+            <div key={f.name}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: C.negro, textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 5 }}>{f.label}</label>
+              <input
+                type={f.type}
+                inputMode={f.inputMode}
+                placeholder={f.placeholder}
+                value={data[f.name] || ""}
+                max={isDate ? new Date().toISOString().split("T")[0] : undefined}
+                onChange={e => onChange(f.name, e.target.value)}
+                onBlur={e => { markTouched(f.name); e.target.style.borderColor = showError ? C.error : C.borde; }}
+                onFocus={e => e.target.style.borderColor = C.fucsia}
+                onClick={e => { if (isDate && e.target.showPicker) { try { e.target.showPicker(); } catch (_) {} } }}
+                style={{
+                  width: "100%", padding: "12px 13px", borderRadius: 10,
+                  border: `1.5px solid ${showError ? C.error : C.borde}`,
+                  fontSize: 16, color: data[f.name] ? C.negro : "#999", background: C.blanco,
+                  outline: "none", fontFamily: "inherit", boxSizing: "border-box",
+                  transition: "border 0.15s",
+                  WebkitAppearance: "none", appearance: "none",
+                  minHeight: 46,
+                }}
+              />
+              {showError && (
+                <div style={{ fontSize: 11, color: C.error, marginTop: 4, fontWeight: 600 }}>{f.error}</div>
+              )}
+            </div>
+          );
+        })}
       </div>
       <Btn onClick={onNext} disabled={!valid}>Continuar</Btn>
       <BackBtn onClick={onBack} />
@@ -656,8 +691,8 @@ export default function App() {
   }, [step]);
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", justifyContent: "center", alignItems: "flex-start", padding: "20px 0 48px", fontFamily: "'Inter', system-ui, sans-serif" }}>
-      <div style={{ width: "100%", maxWidth: 400 }}>
+    <div style={{ minHeight: "100dvh", background: C.bg, display: "flex", justifyContent: "center", alignItems: "flex-start", padding: "16px 12px calc(24px + env(safe-area-inset-bottom))", fontFamily: "'Inter', system-ui, sans-serif", width: "100%", overflowX: "hidden" }}>
+      <div style={{ width: "100%", maxWidth: 420 }}>
         <div style={{ background: C.blanco, borderRadius: 20, border: `1.5px solid ${C.borde}`, overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.07)" }}>
           <Header />
           {step < 6 && <div style={{ borderBottom: `1px solid ${C.borde}` }}><Stepper current={step} /></div>}
