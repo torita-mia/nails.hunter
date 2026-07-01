@@ -147,7 +147,8 @@ function Header() {
         <span style={{ fontSize: 10, fontWeight: 800, color: C.negro, letterSpacing: "0.08em", textTransform: "uppercase" }}>nails.hunter</span>
       </div>
       <div style={{ fontSize: 22, fontWeight: 900, color: C.negro, letterSpacing: "-0.02em", lineHeight: 1.15 }}>Reservá tu turno</div>
-      <div style={{ fontSize: 13, color: C.gris, marginTop: 4 }}>Belgrano, CABA · La Pampa 2036</div>
+      <div style={{ fontSize: 13, color: C.gris, marginTop: 4 }}>📍 Belgrano, CABA</div>
+      <div style={{ fontSize: 11, color: C.gris, marginTop: 2, fontStyle: "italic" }}>La dirección exacta te la mandamos al confirmar el turno</div>
     </div>
   );
 }
@@ -281,9 +282,9 @@ function InfoTooltip({ text }) {
 }
 
 // ─── HELPER PRECIO ────────────────────────────────────────────────────────────
-function calcTotal(base, deco, retirado) {
+function calcTotal(base, deco, retirado, decoCantidad = 1) {
   const b = base?.price || 0;
-  const d = deco?.price || 0;
+  const d = deco ? deco.price * (deco.perUna ? Math.max(1, decoCantidad) : 1) : 0;
   const r = retirado?.price || 0;
   return b + d + r;
 }
@@ -334,25 +335,58 @@ function Step1({ serviceData, onServiceChange, onNext }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
           {DECORACIONES.map(d => {
             const sel = deco?.id === d.id;
+            const cantidad = sel ? (serviceData.decoCantidad || 1) : 1;
             return (
-              <div key={d.id} onClick={() => onServiceChange({ ...serviceData, deco: sel ? null : d, decoPhoto: sel ? null : decoPhoto })}
-                style={{
-                  padding: "12px 15px", borderRadius: 12,
-                  border: `2px solid ${sel ? C.fucsia : C.borde}`,
-                  background: sel ? C.fucsiaLight : C.blanco,
-                  cursor: "pointer", transition: "all 0.15s",
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.negro }}>
-                    {d.name}
-                    {d.consultar && <span style={{ fontSize: 10, background: C.amarillo, color: C.negro, borderRadius: 6, padding: "1px 6px", marginLeft: 6, fontWeight: 700 }}>consultar</span>}
+              <div key={d.id}>
+                <div onClick={() => onServiceChange({ ...serviceData, deco: sel ? null : d, decoPhoto: sel ? null : decoPhoto, decoCantidad: sel ? undefined : 1 })}
+                  style={{
+                    padding: "12px 15px", borderRadius: 12,
+                    border: `2px solid ${sel ? C.fucsia : C.borde}`,
+                    background: sel ? C.fucsiaLight : C.blanco,
+                    cursor: "pointer", transition: "all 0.15s",
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                  }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.negro }}>
+                      {d.name}
+                      {d.consultar && <span style={{ fontSize: 10, background: C.amarillo, color: C.negro, borderRadius: 6, padding: "1px 6px", marginLeft: 6, fontWeight: 700 }}>consultar</span>}
+                    </div>
+                    {d.perUna && <div style={{ fontSize: 11, color: C.gris, marginTop: 2 }}>precio por uña</div>}
                   </div>
-                  {d.perUna && <div style={{ fontSize: 11, color: C.gris, marginTop: 2 }}>precio por uña</div>}
+                  <div style={{ fontSize: 14, fontWeight: 800, color: sel ? C.fucsia : C.negro, flexShrink: 0 }}>
+                    ${d.price.toLocaleString("es-AR")}{d.consultar ? "+" : ""}
+                  </div>
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: sel ? C.fucsia : C.negro, flexShrink: 0 }}>
-                  ${d.price.toLocaleString("es-AR")}{d.consultar ? "+" : ""}
-                </div>
+
+                {/* Selector de cantidad para servicios "por uña" */}
+                {sel && d.perUna && (
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "10px 15px", marginTop: 6,
+                    background: C.lilaLight, borderRadius: 10,
+                  }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: C.negro }}>¿Cuántas uñas?</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onServiceChange({ ...serviceData, decoCantidad: Math.max(1, cantidad - 1) }); }}
+                        style={{
+                          width: 30, height: 30, borderRadius: "50%", border: `1.5px solid ${C.negro}`,
+                          background: C.blanco, fontSize: 16, fontWeight: 800, color: C.negro,
+                          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                        }}
+                      >−</button>
+                      <span style={{ fontSize: 15, fontWeight: 900, color: C.negro, minWidth: 20, textAlign: "center" }}>{cantidad}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onServiceChange({ ...serviceData, decoCantidad: cantidad + 1 }); }}
+                        style={{
+                          width: 30, height: 30, borderRadius: "50%", border: `1.5px solid ${C.negro}`,
+                          background: C.negro, fontSize: 16, fontWeight: 800, color: C.blanco,
+                          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                        }}
+                      >+</button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -389,7 +423,7 @@ function Step1({ serviceData, onServiceChange, onNext }) {
 
   // Sub-paso C: Retirado
   if (subStep === "retirado") {
-    const total = calcTotal(base, deco, retirado);
+    const total = calcTotal(base, deco, retirado, serviceData.decoCantidad);
     const seña = Math.round(total * 0.5);
     return (
       <StepWrap title="¿Necesitás retirado?" subtitle="Opcional. Si venís de otro salón o querés remover antes.">
@@ -608,7 +642,8 @@ function Step4({ data, onChange, onNext, onBack }) {
     else edadValida = true;
   }
 
-  const valid = nombreValid && emailValid && telValid && edadValida; // Instagram ya no es obligatorio
+  const igValid = !!data.instagram?.trim();
+  const valid = nombreValid && emailValid && telValid && igValid && edadValida;
 
   // Fecha máxima = hace 18 años desde hoy
   const hoy = new Date();
@@ -618,7 +653,7 @@ function Step4({ data, onChange, onNext, onBack }) {
     { label: "Nombre completo", name: "nombre", type: "text", placeholder: "Ana García", valid: nombreValid, error: "Ingresá tu nombre completo", required: true },
     { label: "Mail", name: "mail", type: "email", placeholder: "ana@mail.com", valid: emailValid, error: "Ingresá un mail válido (ej: ana@mail.com)", inputMode: "email", required: true },
     { label: "Celular", name: "celular", type: "tel", placeholder: "11 1234-5678", valid: telValid, error: "Ingresá un celular válido", inputMode: "tel", required: true },
-    { label: "Instagram (opcional)", name: "instagram", type: "text", placeholder: "@ana.garcia", valid: true, error: "", required: false },
+    { label: "Instagram", name: "instagram", type: "text", placeholder: "@ana.garcia", valid: igValid, error: "Ingresá tu usuario de Instagram", required: true, hint: "Por si no te encontramos por teléfono" },
     { label: "Fecha de nacimiento", name: "nacimiento", type: "date", valid: edadValida, error: edadError, required: true, max: maxDate },
   ];
 
@@ -632,7 +667,10 @@ function Step4({ data, onChange, onNext, onBack }) {
           const isDate = f.type === "date";
           return (
             <div key={f.name}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: C.negro, textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 5 }}>{f.label}</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: C.negro, textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 5 }}>
+                {f.label}
+                {f.hint && <span style={{ textTransform: "none", fontWeight: 500, color: C.gris, letterSpacing: "normal" }}> ({f.hint})</span>}
+              </label>
               <input
                 type={f.type}
                 inputMode={f.inputMode}
@@ -752,11 +790,14 @@ export default function App() {
   const [timeLeft, setTimeLeft] = useState(1800);
   const timerRef = useRef(null);
 
-  const total = calcTotal(serviceData.base, serviceData.deco, serviceData.retirado);
+  const total = calcTotal(serviceData.base, serviceData.deco, serviceData.retirado, serviceData.decoCantidad);
   const seña = Math.round(total * 0.5);
   // Objeto unificado de servicio para pasar a Step5 y Step6
+  const decoLabel = serviceData.deco
+    ? `${serviceData.deco.name}${serviceData.deco.perUna ? ` x${serviceData.decoCantidad || 1}` : ""}`
+    : null;
   const serviceSummary = serviceData.base ? {
-    name: [serviceData.base?.name, serviceData.deco?.name, serviceData.retirado?.name].filter(Boolean).join(" + "),
+    name: [serviceData.base?.name, decoLabel, serviceData.retirado?.name].filter(Boolean).join(" + "),
     price: total,
     seña,
   } : null;
